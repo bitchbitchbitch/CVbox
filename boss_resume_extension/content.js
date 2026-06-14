@@ -56,12 +56,12 @@
       var line = lines[i].trim();
       if (!line) continue;
       // 匹配：2020.03 - 2022.06、2020年3月 - 2022年6月、2020/03 - 2022/06 等
-      var m = line.match(/(\d{4})[.\/年](\d{1,2})[月]?\s*[~\-—–]\s*(至今|(\d{4})[.\/年]?(\d{1,2})?[月]?)/);
+      var m = line.match(/(\d{4})[.\/年](\d{1,2})[月]?\s*[~\-—–]\s*(至今|现在|(\d{4})[.\/年]?(\d{1,2})?[月]?)/);
       if (!m) continue;
       var sy = parseInt(m[1], 10), sm = parseInt(m[2], 10);
       var start = sy + '.' + (sm < 10 ? '0' + sm : '' + sm);
       var end;
-      if (m[3] === '至今') {
+      if (m[3] === '至今' || m[3] === '现在') {
         var now = new Date();
         end = now.getFullYear() + '.' + ((now.getMonth() + 1) < 10 ? '0' + (now.getMonth() + 1) : '' + (now.getMonth() + 1));
       } else if (m[4]) {
@@ -69,14 +69,33 @@
       } else { continue; }
       periods.push({ start: start, end: end });
     }
-    if (periods.length < 2) return [];
+    if (periods.length === 0) return [];
+    // 按起始时间排序
     periods.sort(function (a, b) { return a.start.localeCompare(b.start) || a.end.localeCompare(b.end); });
     var gaps = [];
+    // 检测时间段之间的空档
     for (var i = 1; i < periods.length; i++) {
       var prev = parseDateStr(periods[i - 1].end), curr = parseDateStr(periods[i].start);
       if (!prev || !curr) continue;
       var diff = (curr.year - prev.year) * 12 + (curr.month - prev.month);
       if (diff >= 3) { gaps.push({ gapStart: periods[i - 1].end, gapEnd: periods[i].start, months: diff }); }
+    }
+    // 检测最后一段结束至今的空档（如果没写"至今"/"现在"）
+    var last = periods[periods.length - 1];
+    if (last) {
+      var lastEnd = parseDateStr(last.end);
+      if (lastEnd) {
+        var now = new Date();
+        var nowY = now.getFullYear(), nowM = now.getMonth() + 1;
+        var trailingDiff = (nowY - lastEnd.year) * 12 + (nowM - lastEnd.month);
+        if (trailingDiff >= 3) {
+          gaps.push({
+            gapStart: last.end,
+            gapEnd: nowY + '.' + (nowM < 10 ? '0' + nowM : '' + nowM),
+            months: trailingDiff
+          });
+        }
+      }
     }
     return gaps;
   }
