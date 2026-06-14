@@ -10,7 +10,8 @@
     jdText: '',
     jdInfo: null,
     generatedText: '',
-    busy: false
+    busy: false,
+    gapFillEnabled: true
   };
 
   // ====== DOM 快捷 ======
@@ -37,6 +38,47 @@
 
   function updateGenBtn() {
     // 按钮始终可点，由 generate() 内部做验证
+  }
+
+  // ====== 空档期检测 ======
+
+  function parseDateStr(str) {
+    var parts = str.split('.');
+    if (parts.length === 2) { return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10) }; }
+    return null;
+  }
+
+  function detectGaps(text) {
+    if (!text) return [];
+    var periods = [];
+    var lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].trim();
+      if (!line) continue;
+      // 匹配：2020.03 - 2022.06、2020年3月 - 2022年6月、2020/03 - 2022/06 等
+      var m = line.match(/(\d{4})[.\/年](\d{1,2})[月]?\s*[~\-—–]\s*(至今|(\d{4})[.\/年]?(\d{1,2})?[月]?)/);
+      if (!m) continue;
+      var sy = parseInt(m[1], 10), sm = parseInt(m[2], 10);
+      var start = sy + '.' + (sm < 10 ? '0' + sm : '' + sm);
+      var end;
+      if (m[3] === '至今') {
+        var now = new Date();
+        end = now.getFullYear() + '.' + ((now.getMonth() + 1) < 10 ? '0' + (now.getMonth() + 1) : '' + (now.getMonth() + 1));
+      } else if (m[4]) {
+        end = parseInt(m[4], 10) + '.' + (parseInt(m[5], 10) < 10 ? '0' + parseInt(m[5], 10) : '' + parseInt(m[5], 10));
+      } else { continue; }
+      periods.push({ start: start, end: end });
+    }
+    if (periods.length < 2) return [];
+    periods.sort(function (a, b) { return a.start.localeCompare(b.start) || a.end.localeCompare(b.end); });
+    var gaps = [];
+    for (var i = 1; i < periods.length; i++) {
+      var prev = parseDateStr(periods[i - 1].end), curr = parseDateStr(periods[i].start);
+      if (!prev || !curr) continue;
+      var diff = (curr.year - prev.year) * 12 + (curr.month - prev.month);
+      if (diff >= 3) { gaps.push({ gapStart: periods[i - 1].end, gapEnd: periods[i].start, months: diff }); }
+    }
+    return gaps;
   }
 
   // ====== 从简历文本中提取姓名 ======
@@ -205,12 +247,25 @@
     btn.innerHTML = '<span class="br-spin"></span> 生成中...';
     status('⏳', '正在调用 AI，约 10-30 秒...');
 
+    // 检测空档期
+    var resumeWithGap = S.resumeText;
+    if (S.gapFillEnabled) {
+      var gaps = detectGaps(S.resumeText);
+      if (gaps.length > 0) {
+        var gapNote = '\n\n【空档期信息】简历中存在以下时间空档期（非正式雇佣，无实际工作记录），请在对应时间段内以【个人项目/兼职经历】的形式补充相关经验，使简历时间线连续：\n';
+        for (var gi = 0; gi < gaps.length; gi++) {
+          gapNote += (gi + 1) + '. ' + gaps[gi].gapStart + ' ~ ' + gaps[gi].gapEnd + '（' + gaps[gi].months + '个月）：请根据目标岗位JD补充一段对应的个人项目或兼职经历\n';
+        }
+        resumeWithGap = S.resumeText + gapNote;
+      }
+    }
+
     try {
       const resp = await new Promise((resolve, reject) => {
         chrome.runtime.sendMessage({
           action: 'generate',
           jd: S.jdText,
-          resume: S.resumeText,
+          resume: resumeWithGap,
           apiKey: key,
           apiBase: $('brApiBase')?.value?.trim() || 'https://api.deepseek.com',
           model: $('brModel')?.value || 'deepseek-chat'
@@ -718,6 +773,10 @@
       '        <div style="font-size:12px;font-weight:600;margin-bottom:4px;margin-top:8px;">API 地址</div>',
       '        <input id="brApiBase" type="url" class="br-inp" value="https://api.deepseek.com" placeholder="https://api.deepseek.com">',
       '        <div style="font-size:11px;color:#94a3b8;margin:4px 0 8px;">默认 DeepSeek，可改为硅基流动等兼容地址</div>',
+      '        <div style="display:flex;align-items:center;gap:6px;margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0;">',
+      '          <input type="checkbox" id="brGapFill" checked>',
+      '          <label for="brGapFill" style="font-size:12px;cursor:pointer;user-select:none;">🤝 自动填充空档期（3个月以上gap转为兼职经历）</label>',
+      '        </div>',
       '      </div>',
       '    </div>',
       '  </div>',
@@ -847,13 +906,18 @@
     $('brApiBase').addEventListener('change', function () {
       chrome.storage.local.set({ br_apiBase: this.value.trim() });
     });
+
+    $('brGapFill').addEventListener('change', function () {
+      S.gapFillEnabled = this.checked;
+      chrome.storage.local.set({ br_gapFill: this.checked });
+    });
   }
 
   // ====== 恢复 ======
 
   async function restore() {
     try {
-      const d = await chrome.storage.local.get(['br_re', 'br_key', 'br_model', 'br_apiBase']);
+      const d = await chrome.storage.local.get(['br_re', 'br_key', 'br_model', 'br_apiBase', 'br_gapFill']);
       if (d.br_re) {
         S.resumeText = d.br_re;
         $('brResumeText').value = d.br_re;
@@ -863,6 +927,11 @@
       if (d.br_key) $('brApiKey').value = d.br_key;
       if (d.br_model) $('brModel').value = d.br_model;
       if (d.br_apiBase) $('brApiBase').value = d.br_apiBase;
+      if (d.br_gapFill !== undefined) {
+        S.gapFillEnabled = d.br_gapFill;
+        var cb = $('brGapFill');
+        if (cb) cb.checked = d.br_gapFill;
+      }
       updateGenBtn();
     } catch (_) {}
   }
