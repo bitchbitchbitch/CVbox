@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "BOSS直聘简历定制助手",
+  "version": "1.0.0",
+  "description": "在BOSS直聘页面左侧显示侧边栏，粘贴简历、抓取岗位信息、AI生成定制简历、下载PDF",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://www.zhipin.com/*",
+    "https://api.openai.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://www.zhipin.com/*"],
+      "js": ["content.js"],
+      "run_at": "document_end"
+    }
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
