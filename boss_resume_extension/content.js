@@ -276,8 +276,14 @@
       // 1. 解析 markdown → 结构化的行
       const lines = parseMarkdownLines(text);
 
-      // 2. 布局：分页
-      const pages = layoutPages(lines);
+      // 2. 布局：分页（如果超过2页且最后一页内容很少，自动紧凑重排）
+      var pages = layoutPages(lines);
+      if (pages.length > 2) {
+        var lastPg = pages[pages.length - 1];
+        if (lastPg.length <= 5) {
+          pages = layoutPages(lines, true);
+        }
+      }
 
       // 3. 每页渲染为 canvas → JPEG 二进制
       const images = pages.map(function (page) { return renderPage(page); });
@@ -361,7 +367,7 @@
 
   // ---------- 布局（分页 + 文字折行测量） ----------
 
-  function layoutPages(lines) {
+  function layoutPages(lines, compact) {
     var DPI = 150;
     var CW = Math.round(8.27 * DPI);
     var CH = Math.round(11.69 * DPI);
@@ -372,6 +378,10 @@
     var contentW = CW - ML - MR;
     var contentH = CH - MT - MB;
 
+    var hScale = compact ? 0.82 : 1.0;   // 行高缩放
+    var fsScale = compact ? 0.95 : 1.0;   // 字号缩放
+    var gap = Math.round((compact ? 1 : 3) * DPI / 72); // 行间距
+
     // 临时测量 canvas
     var mc = document.createElement('canvas');
     var mctx = mc.getContext('2d');
@@ -379,15 +389,14 @@
     var pages = [];
     var cur = [];
     var curY = MT;
-    var gap = Math.round(3 * DPI / 72); // 行间距
 
     for (var i = 0; i < lines.length; i++) {
       var ln = lines[i];
-      var lh = Math.round(ln.h * DPI / 72);
+      var lh = Math.round(ln.h * DPI / 72 * hScale);
 
       // 测量文本，判断是否需要折行，修正 lh
       if (ln.style !== 'empty' && ln.style !== 'hr' && ln.text) {
-        var pxSize = Math.round(ln.fs * DPI / 72);
+        var pxSize = Math.round(ln.fs * DPI / 72 * fsScale);
         mctx.font = (ln.bold ? 'bold ' : '') + pxSize + 'px "PingFang SC","Microsoft YaHei","PingFang","Noto Sans SC",sans-serif';
 
         var availW = contentW;
