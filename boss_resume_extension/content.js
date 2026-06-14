@@ -80,18 +80,19 @@
       var diff = (curr.year - prev.year) * 12 + (curr.month - prev.month);
       if (diff >= 3) { gaps.push({ gapStart: periods[i - 1].end, gapEnd: periods[i].start, months: diff }); }
     }
-    // 检测最后一段结束至今的空档（如果没写"至今"/"现在"）
+    // 检测最后一段结束至今的空档（如果没写"至今"/"现在"），结束日期 = 当前 - 1月
     var last = periods[periods.length - 1];
     if (last) {
       var lastEnd = parseDateStr(last.end);
       if (lastEnd) {
         var now = new Date();
-        var nowY = now.getFullYear(), nowM = now.getMonth() + 1;
-        var trailingDiff = (nowY - lastEnd.year) * 12 + (nowM - lastEnd.month);
+        now.setMonth(now.getMonth() - 1); // 留1个月缓冲
+        var gapEndY = now.getFullYear(), gapEndM = now.getMonth() + 1;
+        var trailingDiff = (gapEndY - lastEnd.year) * 12 + (gapEndM - lastEnd.month);
         if (trailingDiff >= 3) {
           gaps.push({
             gapStart: last.end,
-            gapEnd: nowY + '.' + (nowM < 10 ? '0' + nowM : '' + nowM),
+            gapEnd: gapEndY + '.' + (gapEndM < 10 ? '0' + gapEndM : '' + gapEndM),
             months: trailingDiff
           });
         }
@@ -271,9 +272,13 @@
     if (S.gapFillEnabled) {
       var gaps = detectGaps(S.resumeText);
       if (gaps.length > 0) {
-        var gapNote = '\n\n【空档期信息】简历中存在以下时间空档期（非正式雇佣，无实际工作记录），请在对应时间段内以【个人项目/兼职经历】的形式补充相关经验，使简历时间线连续：\n';
+        var gapNote = '\n\n【强制指令】简历时间线不连续，存在以下时间空档（无实际工作记录）：\n';
         for (var gi = 0; gi < gaps.length; gi++) {
-          gapNote += (gi + 1) + '. ' + gaps[gi].gapStart + ' ~ ' + gaps[gi].gapEnd + '（' + gaps[gi].months + '个月）：请根据目标岗位JD补充一段对应的个人项目或兼职经历\n';
+          gapNote += (gi + 1) + '. ' + gaps[gi].gapStart + ' ~ ' + gaps[gi].gapEnd + '（' + gaps[gi].months + '个月）\n';
+        }
+        gapNote += '你必须按以下要求操作（这是强制指令，必须执行）：\n';
+        for (var gi = 0; gi < gaps.length; gi++) {
+          gapNote += (gi + 1) + '）在 ### 工作经历 中新增一条记录，时间段为 ' + gaps[gi].gapStart + ' - ' + gaps[gi].gapEnd + '，内容根据目标岗位JD虚构一段自由职业/个人项目经历。需要包含：公司或项目名称、职位、职责描述（2-4点）、使用的技术栈、量化成果。不得出现"空档期""gap"等词汇，直接以正式的工作经历呈现。\n';
         }
         resumeWithGap = S.resumeText + gapNote;
       }
