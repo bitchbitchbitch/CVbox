@@ -39,6 +39,24 @@
     // 按钮始终可点，由 generate() 内部做验证
   }
 
+  // ====== 从简历文本中提取姓名 ======
+
+  function extractName(text) {
+    if (!text) return '';
+    // 匹配 "姓名：XXX" 或 "姓名: XXX" 或 "姓名 XXX"
+    var m = text.match(/姓名[：:]\s*([^\s,，、\n]{2,4})/);
+    if (m) return m[1].trim();
+    // 行首第一个中文词（2-4个字），跳过 "###" 等标记
+    var lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].replace(/^###?\s*/, '').replace(/^[-•●]\s*/, '').trim();
+      if (!line) continue;
+      var nm = line.match(/^([一-鿿]{2,4})/);
+      if (nm) return nm[1];
+    }
+    return '';
+  }
+
   // ====== 简历上传 ======
 
   // ====== 简历加载（文本输入框，直接粘贴最可靠） ======
@@ -254,12 +272,25 @@
       // 4. 构造 PDF 文件（嵌入 JPEG 图片）
       const pdfBytes = buildPdfFromImages(images);
 
-      // 5. 下载
+      // 5. 生成文件名：姓名_岗位名称.pdf
+      var name = extractName(S.resumeText);
+      var jobName = S.jdInfo ? (S.jdInfo.jobName || '') : '';
+      var fileName = '简历.pdf';
+      if (name && jobName) {
+        fileName = name + '_' + jobName + '.pdf';
+      } else if (name) {
+        fileName = name + '_简历.pdf';
+      } else if (jobName) {
+        fileName = '简历_' + jobName + '.pdf';
+      }
+      // 去掉文件名中不允许的字符
+      fileName = fileName.replace(/[\\/:*?"<>|]/g, '');
+
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = '定制简历.pdf';
+      a.download = fileName;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
