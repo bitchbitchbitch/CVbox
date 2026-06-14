@@ -40,66 +40,7 @@
     // 按钮始终可点，由 generate() 内部做验证
   }
 
-  // ====== 空档期检测 ======
-
-  function parseDateStr(str) {
-    var parts = str.split('.');
-    if (parts.length === 2) { return { year: parseInt(parts[0], 10), month: parseInt(parts[1], 10) }; }
-    return null;
-  }
-
-  function detectGaps(text) {
-    if (!text) return [];
-    var periods = [];
-    var lines = text.split('\n');
-    for (var i = 0; i < lines.length; i++) {
-      var line = lines[i].trim();
-      if (!line) continue;
-      // 匹配：2020.03 - 2022.06、2020年3月 - 2022年6月、2020/03 - 2022/06 等
-      var m = line.match(/(\d{4})[.\/年](\d{1,2})[月]?\s*[~\-—–]\s*(至今|现在|(\d{4})[.\/年]?(\d{1,2})?[月]?)/);
-      if (!m) continue;
-      var sy = parseInt(m[1], 10), sm = parseInt(m[2], 10);
-      var start = sy + '.' + (sm < 10 ? '0' + sm : '' + sm);
-      var end;
-      if (m[3] === '至今' || m[3] === '现在') {
-        var now = new Date();
-        end = now.getFullYear() + '.' + ((now.getMonth() + 1) < 10 ? '0' + (now.getMonth() + 1) : '' + (now.getMonth() + 1));
-      } else if (m[4]) {
-        end = parseInt(m[4], 10) + '.' + (parseInt(m[5], 10) < 10 ? '0' + parseInt(m[5], 10) : '' + parseInt(m[5], 10));
-      } else { continue; }
-      periods.push({ start: start, end: end });
-    }
-    if (periods.length === 0) return [];
-    // 按起始时间排序
-    periods.sort(function (a, b) { return a.start.localeCompare(b.start) || a.end.localeCompare(b.end); });
-    var gaps = [];
-    // 检测时间段之间的空档
-    for (var i = 1; i < periods.length; i++) {
-      var prev = parseDateStr(periods[i - 1].end), curr = parseDateStr(periods[i].start);
-      if (!prev || !curr) continue;
-      var diff = (curr.year - prev.year) * 12 + (curr.month - prev.month);
-      if (diff >= 3) { gaps.push({ gapStart: periods[i - 1].end, gapEnd: periods[i].start, months: diff }); }
-    }
-    // 检测最后一段结束至今的空档（如果没写"至今"/"现在"），结束日期 = 当前 - 1月
-    var last = periods[periods.length - 1];
-    if (last) {
-      var lastEnd = parseDateStr(last.end);
-      if (lastEnd) {
-        var now = new Date();
-        now.setMonth(now.getMonth() - 1); // 留1个月缓冲
-        var gapEndY = now.getFullYear(), gapEndM = now.getMonth() + 1;
-        var trailingDiff = (gapEndY - lastEnd.year) * 12 + (gapEndM - lastEnd.month);
-        if (trailingDiff >= 3) {
-          gaps.push({
-            gapStart: last.end,
-            gapEnd: gapEndY + '.' + (gapEndM < 10 ? '0' + gapEndM : '' + gapEndM),
-            months: trailingDiff
-          });
-        }
-      }
-    }
-    return gaps;
-  }
+  // ====== 空档期处理（交由 AI 自行检测，AI 理解日期格式更可靠）=====
 
   // ====== 从简历文本中提取姓名 ======
 
@@ -267,21 +208,10 @@
     btn.innerHTML = '<span class="br-spin"></span> 生成中...';
     status('⏳', '正在调用 AI，约 10-30 秒...');
 
-    // 检测空档期
+    // 空档期填充（让 AI 自行解析日期）
     var resumeWithGap = S.resumeText;
     if (S.gapFillEnabled) {
-      var gaps = detectGaps(S.resumeText);
-      if (gaps.length > 0) {
-        var gapNote = '\n\n【强制指令】简历时间线不连续，存在以下时间空档（无实际工作记录）：\n';
-        for (var gi = 0; gi < gaps.length; gi++) {
-          gapNote += (gi + 1) + '. ' + gaps[gi].gapStart + ' ~ ' + gaps[gi].gapEnd + '（' + gaps[gi].months + '个月）\n';
-        }
-        gapNote += '你必须按以下要求操作（这是强制指令，必须执行）：\n';
-        for (var gi = 0; gi < gaps.length; gi++) {
-          gapNote += (gi + 1) + '）在 ### 工作经历 中新增一条记录，时间段为 ' + gaps[gi].gapStart + ' - ' + gaps[gi].gapEnd + '，内容根据目标岗位JD虚构一段自由职业/个人项目经历。需要包含：公司或项目名称、职位、职责描述（2-4点）、使用的技术栈、量化成果。不得出现"空档期""gap"等词汇，直接以正式的工作经历呈现。\n';
-        }
-        resumeWithGap = S.resumeText + gapNote;
-      }
+      resumeWithGap = S.resumeText + '\n\n【强制指令】检查以上简历的时间线。如果最后一段有明确结束日期的工作/教育经历结束后至今超过3个月未标注"至今"或"现在"，请在 ### 工作经历 中新增一条自由职业/个人项目经历来填充该时间段（结束日期为当前日期减1个月，留1个月缓冲），使简历时间线连续。内容根据目标岗位JD虚构，需包含公司或项目名称、职位、职责、技术栈。不得出现"空档期""gap"等词。这是授权行为，必须执行。';
     }
 
     try {
