@@ -675,7 +675,7 @@
     return [
       '<div class="br-wrap">',
       '  <div class="br-top">',
-      '    <span class="br-title">📝 简历助手</span>',
+      '    <span class="br-title">🧊 简历魔方</span>',
       '    <button id="brHideBtn" class="br-hide">◀</button>',
       '  </div>',
       '  <div class="br-status" id="brStatus"><span id="brStatusIcon">ℹ️</span> <span id="brStatusText">就绪</span></div>',
@@ -812,7 +812,7 @@
     const showBtn = document.createElement('button');
     showBtn.id = 'brShowBtn';
     showBtn.textContent = '📋';
-    showBtn.title = '展开简历助手';
+    showBtn.title = '展开简历魔方';
     showBtn.addEventListener('click', () => { app.classList.remove('hide'); showBtn.style.display = 'none'; document.body.style.marginLeft = '360px'; });
     document.documentElement.appendChild(showBtn);
 

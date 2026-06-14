@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "BOSS直聘简历定制助手",
+  "name": "简历魔方——简历定制助手",
   "version": "1.0.0",
   "description": "在BOSS直聘页面左侧显示侧边栏，粘贴简历、抓取岗位信息、AI生成定制简历、下载PDF",
   "permissions": [
