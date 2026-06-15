@@ -14,6 +14,12 @@
     gapFillEnabled: true
   };
 
+  // ====== 可拖拽边栏状态 ======
+  let sidebarWidth = 360;
+  const MIN_WIDTH = 280;
+  const MAX_WIDTH = 600;
+  let isDragging = false;
+
   // ====== DOM 快捷 ======
   const $ = id => document.getElementById(id);
   const qs = (sel, ctx) => (ctx || document).querySelector(sel);
@@ -747,7 +753,8 @@
       '      </div>',
       '    </div>',
       '  </div>',
-      '</div>'
+      '</div>',
+      '<div class="br-resize-handle" id="brResizeHandle"></div>'
     ].join('\n');
   }
 
@@ -759,7 +766,7 @@
     style.id = 'brStyle';
     style.textContent = [
       '#brApp * { box-sizing:border-box; }',
-      '#brApp { position:fixed; left:0; top:0; width:360px; height:100vh; z-index:2147483647; background:#fff; font:14px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:#1e293b; display:flex; flex-direction:column; box-shadow:4px 0 12px rgba(0,0,0,0.08); border-right:1px solid #e2e8f0; }',
+      '#brApp { position:fixed; left:0; top:0; width:var(--br-width,360px); height:100vh; z-index:2147483647; background:#fff; font:14px/1.5 -apple-system,"PingFang SC","Microsoft YaHei",sans-serif; color:#1e293b; display:flex; flex-direction:column; box-shadow:4px 0 12px rgba(0,0,0,0.08); border-right:1px solid #e2e8f0; }',
       '#brApp .br-wrap { display:flex; flex-direction:column; height:100%; }',
       '#brApp .br-top { padding:14px 16px; background:#4F6EF7; color:#fff; display:flex; align-items:center; justify-content:space-between; flex-shrink:0; }',
       '#brApp .br-title { font-size:16px; font-weight:700; }',
@@ -791,14 +798,21 @@
       '#brApp .br-sel { width:100%; padding:7px 10px; border:1px solid #e2e8f0; border-radius:4px; font-size:13px; font-family:inherit; background:#fff; cursor:pointer; }',
       '#brApp .br-spin { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,0.3); border-top-color:#fff; border-radius:50%; animation:brSpin 0.6s linear infinite; }',
       '@keyframes brSpin { to { transform:rotate(360deg); } }',
-      // 页面右移
-      'body { margin-left:360px !important; transition:margin-left 0.3s ease; }',
+      // 拖拽把手
+      '#brApp .br-resize-handle { position:absolute; top:0; right:0; width:8px; height:100%; cursor:col-resize; z-index:10; background:transparent; }',
+      '#brApp .br-resize-handle::after { content:""; position:absolute; top:50%; right:3px; transform:translateY(-50%); width:2px; height:24px; background:#cbd5e1; border-radius:2px; box-shadow:-4px 0 0 #cbd5e1, 4px 0 0 #cbd5e1; transition:background 0.15s; }',
+      '#brApp .br-resize-handle:hover::after { background:#94a3b8; box-shadow:-4px 0 0 #94a3b8, 4px 0 0 #94a3b8; }',
+      '#brApp.br-resizing, #brApp.br-resizing * { user-select:none !important; cursor:col-resize !important; }',
+      '#brApp.br-resizing .br-resize-handle::after { background:#4F6EF7; box-shadow:-4px 0 0 #4F6EF7, 4px 0 0 #4F6EF7; }',
+      // 页面右移（由JS动态控制 margin-left，仅保留 transition）
+      'body.br-sidebar-open { transition:margin-left 0.3s ease; }',
       // 隐藏时的切换按钮
-      '#brShowBtn { position:fixed; left:0; top:50%; transform:translateY(-50%); z-index:2147483646; background:#4F6EF7; color:#fff; border:none; border-radius:0 8px 8px 0; padding:10px 6px; cursor:pointer; font-size:16px; box-shadow:2px 2px 6px rgba(0,0,0,0.15); display:none; }',
+      '#brShowBtn { position:fixed; left:0; top:50%; transform:translateY(-50%); z-index:2147483646; background:#4F6EF7; color:#fff; border:none; border-radius:0 10px 10px 0; padding:20px 5px; cursor:pointer; font-size:13px; font-weight:600; font-family:inherit; line-height:1.6; box-shadow:2px 2px 8px rgba(0,0,0,0.2); display:none; writing-mode:vertical-lr; letter-spacing:3px; }',
       '#brShowBtn:hover { background:#3b56d9; }',
       // 隐藏侧边栏
       '#brApp.hide { transform:translateX(-100%); }',
-      '#brApp.hide ~ #brShowBtn { display:block; }'
+      '#brApp.hide ~ #brShowBtn { display:block; }',
+      '#brApp.hide .br-resize-handle { display:none; }'
     ].join('\n');
     document.head.appendChild(style);
 
@@ -811,10 +825,19 @@
     // 显示按钮
     const showBtn = document.createElement('button');
     showBtn.id = 'brShowBtn';
-    showBtn.textContent = '📋';
+    showBtn.textContent = '🧊简历魔方';
     showBtn.title = '展开简历魔方';
-    showBtn.addEventListener('click', () => { app.classList.remove('hide'); showBtn.style.display = 'none'; document.body.style.marginLeft = '360px'; });
+    showBtn.addEventListener('click', () => {
+      app.classList.remove('hide');
+      showBtn.style.display = 'none';
+      document.body.style.marginLeft = sidebarWidth + 'px';
+      document.body.classList.add('br-sidebar-open');
+    });
     document.documentElement.appendChild(showBtn);
+
+    // 初始 body 右移匹配侧边栏宽度
+    document.body.style.marginLeft = sidebarWidth + 'px';
+    document.body.classList.add('br-sidebar-open');
 
     // 事件
     bindEvents();
@@ -829,6 +852,7 @@
       $('brApp').classList.add('hide');
       $('brShowBtn').style.display = 'block';
       document.body.style.marginLeft = '';
+      document.body.classList.remove('br-sidebar-open');
     });
 
     // 简历文本加载 / 清空
@@ -878,13 +902,70 @@
       S.gapFillEnabled = this.checked;
       chrome.storage.local.set({ br_gapFill: this.checked });
     });
+
+    // ====== 拖拽调整宽度 ======
+    (function initResize() {
+      var handle = $('brResizeHandle');
+      var app = $('brApp');
+      if (!handle || !app) return;
+
+      handle.addEventListener('mousedown', function (e) {
+        e.preventDefault();
+        // 清除之前可能残留的拖拽状态
+        if (isDragging) {
+          isDragging = false;
+        }
+        isDragging = true;
+
+        var startX = e.clientX;
+        var startWidth = sidebarWidth;
+
+        // 临时禁用 CSS transition 以获得实时手感
+        app.style.transition = 'none';
+        app.style.setProperty('--br-width', startWidth + 'px');
+        document.body.style.transition = 'none';
+        app.classList.add('br-resizing');
+
+        function onMouseMove(e) {
+          if (!isDragging) return;
+          var newWidth = startWidth + (e.clientX - startX);
+          newWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, newWidth));
+          newWidth = Math.round(newWidth);
+          sidebarWidth = newWidth;
+
+          // 更新侧边栏宽度
+          app.style.setProperty('--br-width', sidebarWidth + 'px');
+          // 同步更新 body 右边距
+          document.body.style.marginLeft = sidebarWidth + 'px';
+        }
+
+        function onMouseUp() {
+          if (!isDragging) return;
+          isDragging = false;
+
+          // 恢复 transition
+          app.style.transition = '';
+          document.body.style.transition = '';
+          app.classList.remove('br-resizing');
+
+          document.removeEventListener('mousemove', onMouseMove);
+          document.removeEventListener('mouseup', onMouseUp);
+
+          // 持久化宽度
+          chrome.storage.local.set({ br_sidebarWidth: sidebarWidth });
+        }
+
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+      });
+    })();
   }
 
   // ====== 恢复 ======
 
   async function restore() {
     try {
-      const d = await chrome.storage.local.get(['br_re', 'br_key', 'br_model', 'br_apiBase', 'br_gapFill']);
+      const d = await chrome.storage.local.get(['br_re', 'br_key', 'br_model', 'br_apiBase', 'br_gapFill', 'br_sidebarWidth']);
       if (d.br_re) {
         S.resumeText = d.br_re;
         $('brResumeText').value = d.br_re;
@@ -898,6 +979,14 @@
         S.gapFillEnabled = d.br_gapFill;
         var cb = $('brGapFill');
         if (cb) cb.checked = d.br_gapFill;
+      }
+      if (d.br_sidebarWidth) {
+        sidebarWidth = Math.max(MIN_WIDTH, Math.min(MAX_WIDTH, Math.round(d.br_sidebarWidth)));
+        var app = $('brApp');
+        if (app) {
+          app.style.setProperty('--br-width', sidebarWidth + 'px');
+        }
+        document.body.style.marginLeft = sidebarWidth + 'px';
       }
       updateGenBtn();
     } catch (_) {}
