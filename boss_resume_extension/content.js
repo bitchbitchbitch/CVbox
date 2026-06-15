@@ -118,35 +118,98 @@
 
   // ====== JD 提取 ======
 
-  // ====== JD 提取 ======
+  // 判断当前站点
+  function determineSite() {
+    var host = window.location.hostname.toLowerCase();
+    if (host.includes('zhipin.com'))       return 'zhipin';
+    if (host.includes('zhaopin.com'))      return 'zhaopin';
+    if (host.includes('liepin.com'))       return 'liepin';
+    if (host.includes('lagou.com'))        return 'lagou';
+    if (host.includes('51job.com'))        return '51job';
+    if (host.includes('yingjiesheng.com')) return 'yingjiesheng';
+    return 'unknown';
+  }
+
+  // 各站点选择器映射表
+  var SITE_SELECTORS = {
+    zhipin: {
+      jobName: ['[class*="job-name"]', '[class*="jobName"]', '.job-primary h1', 'h1'],
+      salary:  ['[class*="salary"]', '[class*="pay"]', '[class*="money"]', '.job-price'],
+      company: ['[class*="company-name"]', '[class*="companyName"]', 'a[ka="job-detail-company"]'],
+      detail:  ['[class*="job-sec-text"]', '[class*="job-detail"]', '[class*="job-description"]'],
+    },
+    zhaopin: {
+      jobName: ['h3.summary-plane__title', 'div.fl > h1', 'h1'],
+      salary:  ['span.summary-plane__salary', '[class*="salary"]'],
+      company: ['div.fl > h2 > a', '[class*="company-name"]'],
+      detail:  ['div.tab-inner-cont', 'div.terminalpage-main div.tab-cont-box', 'div.tab-cont-box', 'div.describe'],
+    },
+    liepin: {
+      jobName: ['.job-title', 'h1'],
+      salary:  ['span.text-warning', '.salary', '.job-salary'],
+      company: ['.company-name > a', '.job-company-name', '.company'],
+      detail:  ['.content-word', '.job-detail', '.job-description'],
+    },
+    lagou: {
+      jobName: ['.job-name .name', 'h1.name', 'h1'],
+      salary:  ['dd.job_request span:first-child', '.salary'],
+      company: ['h4.company', 'h2.fl', '.company'],
+      detail:  ['dd.job_bt', 'div.job-detail'],
+    },
+    '51job': {
+      jobName: ['div.cn h1', '.cn h1', 'h1'],
+      salary:  ['div.cn strong', '.cn strong', '[class*="salary"]'],
+      company: ['div.cn p.cname a', '[class*="company"]'],
+      detail:  ['div.bmsg.job_msg.inbox', 'div.job_msg'],
+    },
+    yingjiesheng: {
+      jobName: ['h1', '[class*="job-name"]', '[class*="title"]'],
+      salary:  ['[class*="salary"]', '[class*="pay"]', '[class*="money"]'],
+      company: ['[class*="company"]', '[class*="com-name"]'],
+      detail:  ['[class*="detail"]', '[class*="job-description"]', '[class*="content"]'],
+    },
+  };
+
+  // 通用字段提取
+  function extractField(selectors) {
+    for (var i = 0; i < selectors.length; i++) {
+      var el = qs(selectors[i]);
+      if (el) return elemText(el);
+    }
+    return '';
+  }
+
+  // 详情提取（要求长度>20，避免误匹配短片段）
+  function extractDetail(selectors) {
+    for (var i = 0; i < selectors.length; i++) {
+      var el = qs(selectors[i]);
+      if (el) {
+        var text = elemText(el);
+        if (text.length > 20) return text;
+      }
+    }
+    return '';
+  }
 
   function extractJD() {
-    const jd = { jobName: '', salary: '', company: '', detail: '' };
+    var jd = { jobName: '', salary: '', company: '', detail: '' };
+    var site = determineSite();
+    var sel = SITE_SELECTORS[site];
+    if (sel) {
+      jd.jobName = extractField(sel.jobName);
+      jd.salary  = extractField(sel.salary);
+      jd.company = extractField(sel.company);
+      jd.detail  = extractDetail(sel.detail);
+    }
 
-    // 职位名
-    const nameEl = qs('[class*="job-name"]') || qs('[class*="jobName"]') || qs('.job-primary h1') || qs('h1');
-    if (nameEl) jd.jobName = elemText(nameEl);
-
-    // 薪资
-    const salEl = qs('[class*="salary"]') || qs('[class*="pay"]') || qs('[class*="money"]') || qs('.job-price');
-    if (salEl) jd.salary = elemText(salEl);
-
-    // 公司
-    const comEl = qs('[class*="company-name"]') || qs('[class*="companyName"]') || qs('a[ka="job-detail-company"]');
-    if (comEl) jd.company = elemText(comEl);
-
-    // JD 详情 - innerText 保留 <br>/<p> 等换行，不乱码
-    const detailEl = qs('[class*="job-sec-text"]') || qs('[class*="job-detail"]') || qs('[class*="job-description"]');
-    if (detailEl) jd.detail = elemText(detailEl);
-
-    // XPath 兜底
+    // XPath 兜底（全站通用）
     if (!jd.detail) {
-      for (const kw of ['职位描述', '岗位职责', '任职要求', '工作内容']) {
+      for (var ki = 0; ki < ['职位描述', '岗位职责', '任职要求', '工作内容'].length; ki++) {
         try {
-          const h = document.evaluate('//div[contains(text(),"' + kw + '")]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+          var h = document.evaluate('//div[contains(text(),"' + ['职位描述', '岗位职责', '任职要求', '工作内容'][ki] + '")]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
           if (h) {
-            let p = h.parentElement;
-            for (let i = 0; i < 5; i++) { if (p && elemText(p).length > 100) { jd.detail = elemText(p); break; } if (p) p = p.parentElement; }
+            var p = h.parentElement;
+            for (var pi = 0; pi < 5; pi++) { if (p && elemText(p).length > 100) { jd.detail = elemText(p); break; } if (p) p = p.parentElement; }
             if (jd.detail) break;
           }
         } catch (_) {}
@@ -758,6 +821,13 @@
     ].join('\n');
   }
 
+  // 同时移动 body 和 html 的 margin-left，适配更多站点
+  function shiftPageContent(width) {
+    var margin = width ? width + 'px' : '';
+    document.body.style.marginLeft = margin;
+    document.documentElement.style.marginLeft = margin;
+  }
+
   function injectSidebar() {
     if (document.getElementById('brApp')) return;
 
@@ -805,7 +875,7 @@
       '#brApp.br-resizing, #brApp.br-resizing * { user-select:none !important; cursor:col-resize !important; }',
       '#brApp.br-resizing .br-resize-handle::after { background:#4F6EF7; box-shadow:-4px 0 0 #4F6EF7, 4px 0 0 #4F6EF7; }',
       // 页面右移（由JS动态控制 margin-left，仅保留 transition）
-      'body.br-sidebar-open { transition:margin-left 0.3s ease; }',
+      'html.br-sidebar-open, body.br-sidebar-open { transition:margin-left 0.3s ease; }',
       // 隐藏时的切换按钮
       '#brShowBtn { position:fixed; left:0; top:50%; transform:translateY(-50%); z-index:2147483646; background:#4F6EF7; color:#fff; border:none; border-radius:0 10px 10px 0; padding:20px 5px; cursor:pointer; font-size:13px; font-weight:600; font-family:inherit; line-height:1.6; box-shadow:2px 2px 8px rgba(0,0,0,0.2); display:none; writing-mode:vertical-lr; letter-spacing:3px; }',
       '#brShowBtn:hover { background:#3b56d9; }',
@@ -830,13 +900,13 @@
     showBtn.addEventListener('click', () => {
       app.classList.remove('hide');
       showBtn.style.display = 'none';
-      document.body.style.marginLeft = sidebarWidth + 'px';
+      shiftPageContent(sidebarWidth);
       document.body.classList.add('br-sidebar-open');
     });
     document.documentElement.appendChild(showBtn);
 
     // 初始 body 右移匹配侧边栏宽度
-    document.body.style.marginLeft = sidebarWidth + 'px';
+    shiftPageContent(sidebarWidth);
     document.body.classList.add('br-sidebar-open');
 
     // 事件
@@ -851,7 +921,7 @@
     $('brHideBtn').addEventListener('click', () => {
       $('brApp').classList.add('hide');
       $('brShowBtn').style.display = 'block';
-      document.body.style.marginLeft = '';
+      shiftPageContent('');
       document.body.classList.remove('br-sidebar-open');
     });
 
@@ -936,7 +1006,7 @@
           // 更新侧边栏宽度
           app.style.setProperty('--br-width', sidebarWidth + 'px');
           // 同步更新 body 右边距
-          document.body.style.marginLeft = sidebarWidth + 'px';
+          shiftPageContent(sidebarWidth);
         }
 
         function onMouseUp() {
@@ -986,7 +1056,7 @@
         if (app) {
           app.style.setProperty('--br-width', sidebarWidth + 'px');
         }
-        document.body.style.marginLeft = sidebarWidth + 'px';
+        shiftPageContent(sidebarWidth);
       }
       updateGenBtn();
     } catch (_) {}
