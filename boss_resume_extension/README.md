@@ -41,6 +41,10 @@
 ```bash
 git clone https://github.com/bitchbitchbitch/CVbox.git
 ```
+**国内推荐（Gitee 镜像，下载更快）：**
+```bash
+git clone https://gitee.com/zhangyushao111/resume-cube---cvbox.git
+```
 
 ### 加载扩展
 
