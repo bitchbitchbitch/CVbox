@@ -133,9 +133,9 @@
   // 各站点选择器映射表
   var SITE_SELECTORS = {
     zhipin: {
-      jobName: ['[class*="job-name"]', '[class*="jobName"]', '.job-primary h1', 'h1'],
-      salary:  ['[class*="salary"]', '[class*="pay"]', '[class*="money"]', '.job-price'],
-      company: ['[class*="company-name"]', '[class*="companyName"]', 'a[ka="job-detail-company"]'],
+      jobName: ['[class*="job-name"]', '[class*="jobName"]', '.job-primary h1', '.info-primary .name h1', 'h1'],
+      salary:  ['[class*="salary"]', '.info-primary .name span', '[class*="pay"]', '[class*="money"]', '.job-price'],
+      company: ['[class*="company-name"]', '[class*="companyName"]', '.company-text > h3 > a', '.company-name', 'a[ka="job-detail-company"]'],
       detail:  ['[class*="job-sec-text"]', '[class*="job-detail"]', '[class*="job-description"]'],
     },
     zhaopin: {
@@ -147,8 +147,8 @@
     liepin: {
       jobName: ['.job-title', 'h1'],
       salary:  ['span.text-warning', '.salary', '.job-salary'],
-      company: ['.company-name > a', '.job-company-name', '.company'],
-      detail:  ['.content-word', '.job-detail', '.job-description'],
+      company: ['.company-intro-container', '.company-name > a', '.job-company-name', '.company'],
+      detail:  ['[data-selector="job-intro-content"]', '.content-word', '.job-detail', '.job-description'],
     },
     lagou: {
       jobName: ['.job-name .name', 'h1.name', 'h1'],
@@ -163,10 +163,10 @@
       detail:  ['div.bmsg.job_msg.inbox', 'div.job_msg'],
     },
     yingjiesheng: {
-      jobName: ['h1', '[class*="job-name"]', '[class*="title"]'],
-      salary:  ['[class*="salary"]', '[class*="pay"]', '[class*="money"]'],
-      company: ['[class*="company"]', '[class*="com-name"]'],
-      detail:  ['[class*="detail"]', '[class*="job-description"]', '[class*="content"]'],
+      jobName: ['.job', 'h1', '[class*="job-name"]', '[class*="title"]'],
+      salary:  ['.salary', '[class*="salary"]', '[class*="pay"]', '[class*="money"]'],
+      company: ['.detail-content-compnav', '[class*="company"]', '[class*="com-name"]'],
+      detail:  ['.text[style*="height:auto"]', '[class*="detail"]', '[class*="job-description"]', '[class*="content"]'],
     },
   };
 
@@ -200,6 +200,41 @@
       jd.salary  = extractField(sel.salary);
       jd.company = extractField(sel.company);
       jd.detail  = extractDetail(sel.detail);
+    }
+
+    // BOSS直聘 class 名动态变化，CSS 选择器失败时用文本模式匹配兜底
+    if (site === 'zhipin') {
+      if (!jd.salary) {
+        // 匹配薪资格式：20K-40K、20K-40K·14薪、2万-3万
+        var allSpan = document.querySelectorAll('span, div, p');
+        for (var si = 0; si < allSpan.length; si++) {
+          var t = (allSpan[si].textContent || '').trim();
+          if (/^\d+[kK万]\s*[-–—~]\s*\d+[kK万]/.test(t) && t.length < 40) {
+            jd.salary = t;
+            break;
+          }
+        }
+      }
+      if (!jd.company) {
+        // 从页面标题提取（格式：职位_公司_BOSS直聘 / 公司招聘_职位_BOSS直聘）
+        var titleParts = (document.title || '').split('_');
+        if (titleParts.length >= 3) {
+          jd.company = titleParts[titleParts.length - 2];
+        } else if (titleParts.length === 2) {
+          jd.company = titleParts[0];
+        }
+        // 标题提取太短或失败时，找包含 "company" 的链接
+        if (!jd.company || jd.company.length > 30) {
+          var comLinks = document.querySelectorAll('a[href*="company"], a[href*="gongsi"]');
+          for (var ci = 0; ci < comLinks.length; ci++) {
+            var ct = elemText(comLinks[ci]);
+            if (ct && ct.length > 1 && ct.length < 30) {
+              jd.company = ct;
+              break;
+            }
+          }
+        }
+      }
     }
 
     // XPath 兜底（全站通用）
