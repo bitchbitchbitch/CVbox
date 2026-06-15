@@ -191,57 +191,147 @@
     return '';
   }
 
+  // 从结构化数据（JSON-LD）中提取岗位信息
+  function extractStructuredData() {
+    var result = { jobName: '', salary: '', company: '', detail: '' };
+    var scripts = document.querySelectorAll('script[type="application/ld+json"]');
+    for (var si = 0; si < scripts.length; si++) {
+      try {
+        var data = JSON.parse(scripts[si].textContent);
+        var items = data['@graph'] || [data];
+        for (var gi = 0; gi < items.length; gi++) {
+          var item = items[gi];
+          if (item['@type'] === 'JobPosting' || (item['@type'] || '').includes('JobPosting')) {
+            if (item.title && !result.jobName) result.jobName = item.title;
+            if (item.hiringOrganization && item.hiringOrganization.name && !result.company)
+              result.company = item.hiringOrganization.name;
+            if (item.description && !result.detail) result.detail = item.description;
+            // 薪资可能有多种格式
+            if (item.baseSalary) {
+              var bs = item.baseSalary;
+              if (bs.value) {
+                if (bs.value.minValue && bs.value.maxValue)
+                  result.salary = bs.value.minValue + '-' + bs.value.maxValue;
+                else if (bs.value.value)
+                  result.salary = bs.value.value;
+              }
+            }
+            if (result.jobName && result.company) break;
+          }
+        }
+      } catch (_) {}
+    }
+    return result;
+  }
+
+  // 通用文本模式匹配薪资
+  function findSalaryByPattern() {
+    // 优先扫描文档内可见文本中的薪资格式
+    var patterns = [
+      /\b(\d+[kK万]\s*[-–—~]\s*\d+[kK万][·\d]*(?:薪|薪))/,
+      /\b(\d+[kK万]\s*[-–—~]\s*\d+[kK万])/,
+      /\b(\d+\s*[-–—~]\s*\d+[kK万][·\d]*(?:薪|薪))/,
+      /\b(\d+\s*[-–—~]\s*\d+[kK万])/,
+      /\b(\d+[kK万]\s*以上)/,
+      /\b(\d+[kK万]\s*以下)/,
+      /(?:薪资|工资|薪酬)[：:]\s*([^\s，。]+)/,
+    ];
+    // 方法1：扫描所有短文本元素
+    var candidates = document.querySelectorAll('span, div, p, strong, em, b, i, td, th');
+    for (var ci = 0; ci < candidates.length; ci++) {
+      var text = (candidates[ci].textContent || '').trim().replace(/\s+/g, '');
+      if (text.length > 50) continue;
+      for (var pi = 0; pi < patterns.length; pi++) {
+        var m = text.match(patterns[pi]);
+        if (m) {
+          var found = m[1] || m[0];
+          if (found.length < 40) return found;
+        }
+      }
+    }
+    // 方法2：用 innerText 全文扫描（兜底）
+    var bodyText = document.body.innerText || '';
+    for (var pi2 = 0; pi2 < patterns.length; pi2++) {
+      var m2 = bodyText.match(patterns[pi2]);
+      if (m2) return m2[1] || m2[0];
+    }
+    return '';
+  }
+
+  // 从页面各种元数据中提取公司名
+  function findCompanyByMeta() {
+    var c = '';
+    // 1. Open Graph / meta
+    var ogTitle = qs('meta[property="og:title"]');
+    if (ogTitle) c = ogTitle.getAttribute('content') || '';
+    if (!c) {
+      var ogSite = qs('meta[property="og:site_name"]');
+      if (ogSite) c = ogSite.getAttribute('content') || '';
+    }
+    // 2. 页面标题（常见格式：职位_公司_招聘平台 或 公司招聘_职位）
+    if (!c || c.length > 30) {
+      var title = document.title || '';
+      var parts = title.split('_').filter(function(p) { return p.trim(); });
+      // 格式：职位_公司_BOSS直聘 → 取中间；公司_招聘_职位 → 取第一个
+      if (parts.length >= 3 && parts[parts.length - 1].includes('BOSS'))
+        c = parts[parts.length - 2];
+      else if (parts.length >= 2)
+        c = parts[0];
+    }
+    // 3. 包含 "company" 特征的链接
+    if (!c || c.length > 30) {
+      var comLinks = document.querySelectorAll(
+        'a[href*="company"], a[href*="gongsi"], [class*="company"] a, a[ka*="company"]'
+      );
+      for (var li = 0; li < comLinks.length; li++) {
+        var t = (comLinks[li].textContent || '').trim();
+        if (t && t.length > 1 && t.length < 30) { c = t; break; }
+      }
+    }
+    // 4. 大标题中的公司名（找 h1-h3 中不包含招聘/面试等通用词且非职位名的）
+    if (!c || c.length > 30) {
+      var hs = document.querySelectorAll('h1, h2, h3');
+      for (var hi = 0; hi < hs.length; hi++) {
+        var ht = (hs[hi].textContent || '').trim();
+        if (ht && ht.length > 1 && ht.length < 20) {
+          if (/(公司|有限|集团|股份|科技|技术|信息|网络|文化|传媒|教育|咨询)$/.test(ht)) {
+            c = ht; break;
+          }
+        }
+      }
+    }
+    return c;
+  }
+
   function extractJD() {
     var jd = { jobName: '', salary: '', company: '', detail: '' };
     var site = determineSite();
     var sel = SITE_SELECTORS[site];
+
+    // 第一道：结构化数据提取（JSON-LD，全站通用，不依赖 class）
+    var sd = extractStructuredData();
+    if (sd.jobName) jd.jobName = sd.jobName;
+    if (sd.salary)  jd.salary  = sd.salary;
+    if (sd.company) jd.company = sd.company;
+    if (sd.detail)  jd.detail  = sd.detail;
+
+    // 第二道：CSS 选择器（各站专用，补充结构化数据未覆盖的字段）
     if (sel) {
-      jd.jobName = extractField(sel.jobName);
-      jd.salary  = extractField(sel.salary);
-      jd.company = extractField(sel.company);
-      jd.detail  = extractDetail(sel.detail);
+      if (!jd.jobName) jd.jobName = extractField(sel.jobName);
+      if (!jd.salary)  jd.salary  = extractField(sel.salary);
+      if (!jd.company) jd.company = extractField(sel.company);
+      if (!jd.detail)  jd.detail  = extractDetail(sel.detail);
     }
 
-    // BOSS直聘 class 名动态变化，CSS 选择器失败时用文本模式匹配兜底
-    if (site === 'zhipin') {
-      if (!jd.salary) {
-        // 匹配薪资格式：20K-40K、20K-40K·14薪、2万-3万
-        var allSpan = document.querySelectorAll('span, div, p');
-        for (var si = 0; si < allSpan.length; si++) {
-          var t = (allSpan[si].textContent || '').trim();
-          if (/^\d+[kK万]\s*[-–—~]\s*\d+[kK万]/.test(t) && t.length < 40) {
-            jd.salary = t;
-            break;
-          }
-        }
-      }
-      if (!jd.company) {
-        // 从页面标题提取（格式：职位_公司_BOSS直聘 / 公司招聘_职位_BOSS直聘）
-        var titleParts = (document.title || '').split('_');
-        if (titleParts.length >= 3) {
-          jd.company = titleParts[titleParts.length - 2];
-        } else if (titleParts.length === 2) {
-          jd.company = titleParts[0];
-        }
-        // 标题提取太短或失败时，找包含 "company" 的链接
-        if (!jd.company || jd.company.length > 30) {
-          var comLinks = document.querySelectorAll('a[href*="company"], a[href*="gongsi"]');
-          for (var ci = 0; ci < comLinks.length; ci++) {
-            var ct = elemText(comLinks[ci]);
-            if (ct && ct.length > 1 && ct.length < 30) {
-              jd.company = ct;
-              break;
-            }
-          }
-        }
-      }
-    }
+    // 第三道：通用文本模式兜底（全站通用）
+    if (!jd.salary)  jd.salary  = findSalaryByPattern();
+    if (!jd.company) jd.company = findCompanyByMeta();
 
-    // XPath 兜底（全站通用）
+    // XPath 兜底（全站通用，用于 JD 描述）
     if (!jd.detail) {
-      for (var ki = 0; ki < ['职位描述', '岗位职责', '任职要求', '工作内容'].length; ki++) {
+      for (var ki = 0; ki < ['职位描述', '岗位职责', '任职要求', '工作内容', '岗位要求', '工作职责'].length; ki++) {
         try {
-          var h = document.evaluate('//div[contains(text(),"' + ['职位描述', '岗位职责', '任职要求', '工作内容'][ki] + '")]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+          var h = document.evaluate('//div[contains(text(),"' + ['职位描述', '岗位职责', '任职要求', '工作内容', '岗位要求', '工作职责'][ki] + '")]', document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
           if (h) {
             var p = h.parentElement;
             for (var pi = 0; pi < 5; pi++) { if (p && elemText(p).length > 100) { jd.detail = elemText(p); break; } if (p) p = p.parentElement; }
