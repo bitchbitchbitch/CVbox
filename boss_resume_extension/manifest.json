@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "简历魔方——简历定制助手",
   "version": "1.1.0",
-  "description": "在BOSS直聘、智联招聘、猎聘、拉勾网、前程无忧、应届生求职网的职位详情页显示侧边栏，一键获取岗位信息、AI生成定制简历、下载PDF",
+  "description": "在BOSS直聘、智联招聘、猎聘、前程无忧、应届生求职网的职位详情页显示侧边栏，一键获取岗位信息、AI生成定制简历、下载PDF",
   "permissions": [
     "storage"
   ],
@@ -10,10 +10,8 @@
     "https://*.zhipin.com/*",
     "https://*.zhaopin.com/*",
     "https://*.liepin.com/*",
-    "https://*.lagou.com/*",
     "https://*.51job.com/*",
     "https://*.yingjiesheng.com/*",
-    "https://api.openai.com/*",
     "https://api.deepseek.com/*"
   ],
   "content_scripts": [
@@ -22,7 +20,6 @@
         "https://www.zhipin.com/*",
         "https://*.zhaopin.com/*",
         "https://*.liepin.com/*",
-        "https://*.lagou.com/*",
         "https://*.51job.com/*",
         "https://*.yingjiesheng.com/*"
       ],

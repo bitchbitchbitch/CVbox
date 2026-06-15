@@ -124,7 +124,6 @@
     if (host.includes('zhipin.com'))       return 'zhipin';
     if (host.includes('zhaopin.com'))      return 'zhaopin';
     if (host.includes('liepin.com'))       return 'liepin';
-    if (host.includes('lagou.com'))        return 'lagou';
     if (host.includes('51job.com'))        return '51job';
     if (host.includes('yingjiesheng.com')) return 'yingjiesheng';
     return 'unknown';
@@ -141,7 +140,7 @@
     zhaopin: {
       jobName: ['h3.summary-plane__title', 'div.fl > h1', 'h1'],
       salary:  ['span.summary-plane__salary', '[class*="salary"]'],
-      company: ['div.fl > h2 > a', '[class*="company-name"]'],
+      company: ['.company-info__header', 'div.fl > h2 > a', '[class*="company-name"]'],
       detail:  ['.describtion-card__detail-content', 'div.tab-inner-cont', 'div.tab-cont-box', 'div.describe'],
     },
     liepin: {
@@ -149,12 +148,6 @@
       salary:  ['span.text-warning', '.salary', '.job-salary'],
       company: ['.company-intro-container', '.company-card .content .name.ellipsis-1', '.name.ellipsis-1', '.company-name > a', '.job-company-name', '.company'],
       detail:  ['[data-selector="job-intro-content"]', '.content-word', '.job-detail', '.job-description'],
-    },
-    lagou: {
-      jobName: ['.job-name .name', 'h1.name', 'h1'],
-      salary:  ['dd.job_request span:first-child', '.salary'],
-      company: ['h4.company', 'h2.fl', '.company'],
-      detail:  ['dd.job_bt', 'div.job-detail'],
     },
     '51job': {
       jobName: ['div.cn h1', '.cn h1', 'h1'],
@@ -165,7 +158,7 @@
     yingjiesheng: {
       jobName: ['.job', 'h1', '[class*="job-name"]', '[class*="title"]'],
       salary:  ['.salary', '[class*="salary"]', '[class*="pay"]', '[class*="money"]'],
-      company: ['.detail-content-compnav-center', '.detail-content-compnav', '[class*="company"]', '[class*="com-name"]'],
+      company: ['.detail-content-compnav', '[class*="company"]', '[class*="com-name"]'],
       detail:  ['.text[style*="height:auto"]', '[class*="detail"]', '[class*="job-description"]', '[class*="content"]'],
     },
   };
