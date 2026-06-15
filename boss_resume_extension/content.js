@@ -147,7 +147,7 @@
     liepin: {
       jobName: ['.job-title', 'h1'],
       salary:  ['span.text-warning', '.salary', '.job-salary'],
-      company: ['.company-intro-container', '.company-name > a', '.job-company-name', '.company'],
+      company: ['.company-intro-container', '.company-card .content .name.ellipsis-1', '.name.ellipsis-1', '.company-name > a', '.job-company-name', '.company'],
       detail:  ['[data-selector="job-intro-content"]', '.content-word', '.job-detail', '.job-description'],
     },
     lagou: {
@@ -165,7 +165,7 @@
     yingjiesheng: {
       jobName: ['.job', 'h1', '[class*="job-name"]', '[class*="title"]'],
       salary:  ['.salary', '[class*="salary"]', '[class*="pay"]', '[class*="money"]'],
-      company: ['.detail-content-compnav', '[class*="company"]', '[class*="com-name"]'],
+      company: ['.detail-content-compnav-center', '.detail-content-compnav', '[class*="company"]', '[class*="com-name"]'],
       detail:  ['.text[style*="height:auto"]', '[class*="detail"]', '[class*="job-description"]', '[class*="content"]'],
     },
   };
@@ -308,22 +308,22 @@
     var site = determineSite();
     var sel = SITE_SELECTORS[site];
 
-    // 第一道：结构化数据提取（JSON-LD，全站通用，不依赖 class）
-    var sd = extractStructuredData();
-    if (sd.jobName) jd.jobName = sd.jobName;
-    if (sd.salary)  jd.salary  = sd.salary;
-    if (sd.company) jd.company = sd.company;
-    if (sd.detail)  jd.detail  = sd.detail;
-
-    // 第二道：CSS 选择器（各站专用，补充结构化数据未覆盖的字段）
+    // 第一道：CSS 选择器（各站专用，精确匹配，优先级最高）
     if (sel) {
-      if (!jd.jobName) jd.jobName = extractField(sel.jobName);
-      if (!jd.salary)  jd.salary  = extractField(sel.salary);
-      if (!jd.company) jd.company = extractField(sel.company);
-      if (!jd.detail)  jd.detail  = extractDetail(sel.detail);
+      jd.jobName = extractField(sel.jobName);
+      jd.salary  = extractField(sel.salary);
+      jd.company = extractField(sel.company);
+      jd.detail  = extractDetail(sel.detail);
     }
 
-    // 第三道：通用文本模式兜底（全站通用）
+    // 第二道：结构化数据提取（JSON-LD，仅填充 CSS 未捕获的字段）
+    var sd = extractStructuredData();
+    if (!jd.jobName) jd.jobName = sd.jobName;
+    if (!jd.salary)  jd.salary  = sd.salary;
+    if (!jd.company) jd.company = sd.company;
+    if (!jd.detail)  jd.detail  = sd.detail;
+
+    // 第三道：通用文本模式兜底（仅填充前两道未捕获的字段）
     if (!jd.salary)  jd.salary  = findSalaryByPattern();
     if (!jd.company) jd.company = findCompanyByMeta();
 
@@ -373,9 +373,9 @@
     S.jdInfo = jd;
     S.jdText = formatJD(jd);
 
-    $('brJDJobName').textContent = jd.jobName || '-';
-    $('brJDCompany').textContent = jd.company || '-';
-    $('brJDSalary').textContent = jd.salary || '-';
+    $('brJDJobName').value = jd.jobName || '-';
+    $('brJDCompany').value = jd.company || '-';
+    $('brJDSalary').value = jd.salary || '-';
     $('brJDDetail').textContent = jd.detail || '(无)';
     $('brJDInfo').style.display = 'block';
     $('brJDEmpty').style.display = 'none';
@@ -892,9 +892,9 @@
       '      <div class="br-box-t">🔍 抓取岗位</div>',
       '      <button id="brFetchBtn" class="br-btn br-btn-p">🔍 抓取岗位信息</button>',
       '      <div id="brJDInfo" style="display:none;" class="br-jd">',
-      '        <div><b>岗位：</b><span id="brJDJobName"></span></div>',
-      '        <div><b>公司：</b><span id="brJDCompany"></span></div>',
-      '        <div><b>薪资：</b><span id="brJDSalary"></span></div>',
+      '        <div class="br-jd-row"><b>岗位：</b><input id="brJDJobName" class="br-jd-inp" placeholder="自动抓取或手动填写"></div>',
+      '        <div class="br-jd-row"><b>公司：</b><input id="brJDCompany" class="br-jd-inp" placeholder="自动抓取或手动填写"></div>',
+      '        <div class="br-jd-row"><b>薪资：</b><input id="brJDSalary" class="br-jd-inp" placeholder="自动抓取或手动填写"></div>',
       '        <div class="br-jd-d" id="brJDDetail"></div>',
       '      </div>',
       '      <div id="brJDEmpty" style="margin-top:8px;font-size:12px;color:#94a3b8;">点击按钮获取当前页面的职位信息</div>',
@@ -984,6 +984,12 @@
       '#brApp .br-file-row { display:flex; align-items:center; padding:6px 10px; background:#eef1ff; border-radius:4px; font-size:12px; margin-top:8px; }',
       '#brApp .br-jd { background:#f8fafc; border-radius:6px; padding:10px 12px; margin-top:8px; font-size:13px; line-height:1.7; }',
       '#brApp .br-jd-d { margin-top:6px; padding-top:6px; border-top:1px solid #e2e8f0; font-size:12px; color:#64748b; max-height:150px; overflow-y:auto; white-space:pre-wrap; }',
+      '#brApp .br-jd-row { display:flex; align-items:center; gap:4px; margin-bottom:3px; }',
+      '#brApp .br-jd-row b { flex-shrink:0; font-size:12px; }',
+      '#brApp .br-jd-inp { flex:1; min-width:0; padding:2px 4px; border:1px solid transparent; border-radius:3px; font-size:12px; font-family:inherit; background:transparent; outline:none; color:inherit; transition:border-color 0.15s, background 0.15s; }',
+      '#brApp .br-jd-inp:focus { border-color:#4F6EF7; background:#fff; }',
+      '#brApp .br-jd-inp:hover { border-color:#cbd5e1; background:#fff; }',
+      '#brApp .br-jd-inp::placeholder { color:#cbd5e1; font-size:11px; }',
       '#brApp .br-textarea { width:100%; box-sizing:border-box; padding:8px 10px; border:1px solid #e2e8f0; border-radius:6px; font-size:13px; font-family:inherit; line-height:1.6; resize:vertical; outline:none; }',
       '#brApp .br-textarea:focus { border-color:#4F6EF7; }',
       '#brApp .br-set-toggle { font-size:12px; color:#4F6EF7; cursor:pointer; text-align:center; }',
@@ -1062,6 +1068,21 @@
 
     // JD
     $('brFetchBtn').addEventListener('click', fetchJD);
+
+    // 手动编辑岗位信息后同步到状态
+    function syncJDFromInputs() {
+      var name = $('brJDJobName').value.trim();
+      var company = $('brJDCompany').value.trim();
+      var salary = $('brJDSalary').value.trim();
+      var detail = $('brJDDetail').textContent.trim();
+      if (name || company || salary || detail) {
+        S.jdInfo = { jobName: name, company: company, salary: salary, detail: detail };
+        S.jdText = formatJD(S.jdInfo);
+      }
+    }
+    $('brJDJobName').addEventListener('input', syncJDFromInputs);
+    $('brJDCompany').addEventListener('input', syncJDFromInputs);
+    $('brJDSalary').addEventListener('input', syncJDFromInputs);
 
     // 生成
     $('brGenBtn').addEventListener('click', generate);
