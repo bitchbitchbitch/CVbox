@@ -33,13 +33,13 @@
 
 ### 方式一：下载 ZIP
 
-1. 打开 https://github.com/bitchbitchbitch/---
+1. 打开 https://github.com/bitchbitchbitch/CVbox
 2. 点击 **Code** → **Download ZIP** → 解压
 
 ### 方式二：Git 克隆
 
 ```bash
-git clone https://github.com/bitchbitchbitch/---.git
+git clone https://github.com/bitchbitchbitch/CVbox.git
 ```
 
 ### 加载扩展
