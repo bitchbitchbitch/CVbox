@@ -142,7 +142,7 @@
       jobName: ['h3.summary-plane__title', 'div.fl > h1', 'h1'],
       salary:  ['span.summary-plane__salary', '[class*="salary"]'],
       company: ['div.fl > h2 > a', '[class*="company-name"]'],
-      detail:  ['div.tab-inner-cont', 'div.terminalpage-main div.tab-cont-box', 'div.tab-cont-box', 'div.describe'],
+      detail:  ['.describtion-card__detail-content', 'div.tab-inner-cont', 'div.tab-cont-box', 'div.describe'],
     },
     liepin: {
       jobName: ['.job-title', 'h1'],
